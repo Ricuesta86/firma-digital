@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Solicitud de firma digital recibida desde el formulario público.
+//
+// `status`, `certificateType` y `documentType` son String y no enum: SQLite no
+// aplica restricciones de tipo, y la validez de estos valores la garantizan el
+// schema zod (lib/request-status.ts, lib/validation.ts) y la capa de tipos del
+// DAL. Ver design.md D2.
+model SignatureRequest {
+  id String @id @default(cuid())
+
+  // Datos de contacto
+  fullName    String
+  email       String
+  phone       String
+  companyName String
+  nif         String
+  address     String?
+  position    String
+
+  // Datos de identidad
+  documentType   String
+  documentNumber String
+  country        String
+
+  // Solicitud
+  certificateType String
+  message         String?
+  privacyConsent  Boolean
+
+  // Gestión interna
+  status               String       @default("NEW")
+  adminNotes           String?
+  notificationSentAt   DateTime?
+  notificationError    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events RequestStatusEvent[]
+
+  @@index([status, createdAt])
+  @@index([certificateType])
+  @@index([email])
+  @@map("signature_requests")
+}
+
+// Historial append-only de transiciones de estado (design.md D6).
+// No existe ninguna vía de aplicación para editarlo o borrarlo.
+model RequestStatusEvent {
+  id String @id @default(cuid())
+
+  requestId  String
+  fromStatus String?
+  toStatus   String
+  note       String?
+
+  createdAt DateTime @default(now())
+
+  request SignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("request_status_events")
+}

@@ -17,6 +17,16 @@
 /.next/
 /out/
 
+# base de datos SQLite (contiene datos personales sujetos a RGPD)
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# cliente de Prisma generado
+/lib/generated/
+
 # production
 /build
 
