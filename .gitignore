@@ -18,7 +18,10 @@
 /out/
 
 # base de datos SQLite (contiene datos personales sujetos a RGPD)
-/data/
+# OJO: NO se ignora /data/. Ese directorio contiene el código de la capa DAL
+# (db.ts, requests.ts, auth.ts, admin-config.ts, db-config.ts), que sí debe
+# versionarse. El fichero de base de datos queda cubierto por los patrones
+# *.db de abajo.
 *.db
 *.db-journal
 *.db-wal
