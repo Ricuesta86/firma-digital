@@ -15,10 +15,9 @@ Instala las dependencias:
 pnpm install
 ```
 
-Genera el cliente de Prisma y aplica las migraciones:
+`pnpm install` ya genera el cliente de Prisma en `lib/generated/` (script `postinstall`), así que no hace falta ningún paso extra. Aplica las migraciones en la base de datos local:
 
 ```bash
-pnpm db:generate
 pnpm db:migrate
 ```
 
@@ -66,7 +65,7 @@ Abre [http://localhost:3000](http://localhost:3000). El formulario está en `/#c
 | Comando             | Descripción                                          |
 | ------------------- | ---------------------------------------------------- |
 | `pnpm dev`          | Servidor de desarrollo (Turbopack)                   |
-| `pnpm build`        | Build de producción                                  |
+| `pnpm build`        | Build de producción (genera el cliente antes)        |
 | `pnpm start`        | Sirve el build de producción                         |
 | `pnpm lint`         | ESLint                                               |
 | `pnpm typecheck`    | Comprobación de tipos con `tsc --noEmit`             |
@@ -75,6 +74,10 @@ Abre [http://localhost:3000](http://localhost:3000). El formulario está en `/#c
 | `pnpm db:deploy`    | Aplica migraciones en local, sin prompts             |
 | `pnpm db:deploy:turso` | Aplica el esquema en Turso, sin prompts           |
 | `pnpm db:studio`    | GUI de Prisma para inspeccionar la base de datos     |
+
+El cliente de Prisma se genera solo: `pnpm install` lo hace vía `postinstall` y `pnpm build` lo repite antes de compilar, para que la construcción no dependa de los hooks de instalación. `db:generate` queda para regenerarlo a mano tras tocar `prisma/schema.prisma`.
+
+El cliente vive en `lib/generated/` y **no se versiona**: es código generado. Por eso nadie lo ejecuta antes de `pnpm build`, ni en local ni en el hosting.
 
 `db:migrate` espera siempre la base de datos local: es el único comando que genera SQL de migración nuevo. Para desplegar el esquema en Turso usa `db:deploy:turso`, no `db:deploy` (ver la sección de Turso para el porqué).
 
@@ -105,7 +108,9 @@ lib/
   db-config.ts                   Resolución y validación de la URL de la BD (puro)
   request-status.ts              Estados y transiciones permitidas
   validation.ts                  Esquemas zod compartidos
-  email.ts                       Transporte Nodemailer y render del mensaje
+  email.ts                        Transporte Nodemailer y render del mensaje
+  generated/prisma/               Cliente de Prisma generado (no se versiona)
+
 prisma/
   schema.prisma                  Modelos SignatureRequest y RequestStatusEvent
   migrations/                    Migraciones SQL versionadas
@@ -222,11 +227,30 @@ Hazlo con la aplicación parada para no exportar a medias, y recuerda que `data/
 
 ## Despliegue
 
-- Tras clonar o actualizar, ejecuta `pnpm db:generate` y `pnpm db:deploy:turso` antes de `pnpm build` si el destino es Turso, o `pnpm db:deploy` si es SQLite local.
+- No hay ningún paso previo de generación del cliente: `pnpm install` y `pnpm build` ya se encargan. Lo único que hay que aplicar antes de publicar es el **esquema**, que el build no toca.
+- Si el destino es Turso, ejecuta `pnpm db:deploy:turso` una vez contra la base de datos de destino antes de dar el despliegue por bueno. Si es SQLite local, `pnpm db:deploy`.
 - El destino de la base de datos lo decide el entorno: con `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` definidos, `db:deploy:turso` aplica el esquema en Turso y la aplicación escribe allí. Sin ellos, sigue usando el fichero SQLite local.
 - Con SQLite local, **una sola instancia** de la aplicación puede escribir sobre `data/app.db`: con varias réplicas o instancias de Node, las escrituras concurrentes fallan con `database is locked`. Por eso SQLite es solo para desarrollo.
-- En producción con Turso, la URL y el token se configuran como variables de entorno del proveedor de hosting, nunca en un fichero versionado.
+- En producción con Turso, la URL y el token se configuran como variables de entorno del proveedor de hosting, nunca en un fichero versionado. **Defínelas en el mismo ámbito** (Preview y Production se configuran por separado): si una queda fuera, el build falla al validar la configuración.
 - Turso añade latencia de red a cada consulta porque el transporte es HTTP. Para el volumen actual (formulario y panel) es aceptable; si hiciera falta, el siguiente paso sería réplicas de lectura o pooling.
+
+### Problemas típicos en el despliegue
+
+**`Module not found: Can't resolve '@/lib/generated/prisma/client'`**
+
+La fase de build no generó el cliente de Prisma, que vive en `lib/generated/` y no se versiona. Comprueba que `package.json` tiene `"postinstall": "prisma generate"` y que `build` empieza por `prisma generate && next build`; si es así, este error no debería aparecer y hay que mirar el log de la fase de install.
+
+**`CONFIGURACION_BD_SIN_TOKEN` o `CONFIGURACION_BD_AMBIGUA` durante el build**
+
+La configuración de base de datos del entorno es incoherente y la aplicación la valida al arrancar, también durante el build. Significa que falta `TURSO_AUTH_TOKEN` para la URL de Turso, o que hay una URL local y una de Turso a la vez. Corrige las variables de entorno del despliegue: `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` juntas, o ninguna.
+
+**`prisma: command not found`**
+
+El instalador del proveedor se ejecutó en modo producción y no instaló `devDependencies`, así que no está el CLI de Prisma. Espera a que `prisma` (y `@prisma/client`) estén en `dependencies`, o fuerza la instalación completa en el proyecto del proveedor.
+
+**`P1013: The scheme is not recognized in database URL`**
+
+El motor de migraciones de Prisma no habla `libsql://`. No es un problema del despliegue: para Turso usa `pnpm db:deploy:turso` (ver la sección de Turso).
 
 ## Datos personales y copias de seguridad
 
