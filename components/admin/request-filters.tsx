@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { certificateTypes } from "@/lib/validation";
+import { signerModes, signerModeLabels } from "@/lib/validation";
 import {
   requestStatuses,
   requestStatusLabels,
@@ -13,7 +13,7 @@ const selectClasses =
 export type FiltersProps = {
   q?: string;
   status?: RequestStatus;
-  certificateType?: string;
+  signerMode?: string;
   page: number;
   pageSize: number;
 };
@@ -32,8 +32,7 @@ export function buildListUrl(
 
   if (merged.q) params.set("q", merged.q);
   if (merged.status) params.set("status", merged.status);
-  if (merged.certificateType)
-    params.set("certificateType", merged.certificateType);
+  if (merged.signerMode) params.set("signerMode", merged.signerMode);
   if (merged.pageSize && merged.pageSize !== 20)
     params.set("pageSize", String(merged.pageSize));
 
@@ -64,7 +63,7 @@ export function RequestFiltersForm({ filters }: { filters: FiltersProps }) {
             name="q"
             type="search"
             defaultValue={filters.q}
-            placeholder="Nombre, email, razón social o NIF"
+            placeholder="Nombre, email, razón social, empresa, REEUP o solicitante"
             className={selectClasses}
           />
         </div>
@@ -93,21 +92,21 @@ export function RequestFiltersForm({ filters }: { filters: FiltersProps }) {
 
         <div>
           <label
-            htmlFor="certificateType"
+            htmlFor="signerMode"
             className="mb-1.5 block text-sm font-medium text-zinc-700"
           >
-            Tipo de certificado
+            Modo de firmante
           </label>
           <select
-            id="certificateType"
-            name="certificateType"
-            defaultValue={filters.certificateType ?? ""}
+            id="signerMode"
+            name="signerMode"
+            defaultValue={filters.signerMode ?? ""}
             className={selectClasses}
           >
             <option value="">Todos</option>
-            {certificateTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
+            {signerModes.map((mode) => (
+              <option key={mode} value={mode}>
+                {signerModeLabels[mode]}
               </option>
             ))}
           </select>
@@ -122,7 +121,7 @@ export function RequestFiltersForm({ filters }: { filters: FiltersProps }) {
           Aplicar filtros
         </button>
 
-        {filters.q || filters.status || filters.certificateType ? (
+        {filters.q || filters.status || filters.signerMode ? (
           <Link
             href="/admin"
             className="text-sm font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline"
@@ -132,13 +131,11 @@ export function RequestFiltersForm({ filters }: { filters: FiltersProps }) {
         ) : null}
 
         <Link
-          href={`/api/admin/export${filters.q || filters.status || filters.certificateType ? `?${new URLSearchParams(
+          href={`/api/admin/export${filters.q || filters.status || filters.signerMode ? `?${new URLSearchParams(
             Object.entries({
               ...(filters.q ? { q: filters.q } : {}),
               ...(filters.status ? { status: filters.status } : {}),
-              ...(filters.certificateType
-                ? { certificateType: filters.certificateType }
-                : {}),
+              ...(filters.signerMode ? { signerMode: filters.signerMode } : {}),
             }),
           )}` : ""}`}
           className="ml-auto text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"

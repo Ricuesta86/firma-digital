@@ -1,8 +1,5 @@
-# request-export Specification
+## MODIFIED Requirements
 
-## Purpose
-Exportación de las solicitudes registradas a fichero CSV, respetando los filtros activos, con escapado seguro de valores, neutralización de fórmulas y descarga como adjunto.
-## Requirements
 ### Requirement: Descarga de exportaciones en CSV
 
 El sistema SHALL ofrecer al administrador la descarga de las solicitudes registradas en formato CSV, y SHALL restringir la exportación a las solicitudes que cumplen los criterios de filtro indicados en la propia solicitud de descarga.
@@ -42,60 +39,7 @@ El sistema SHALL ofrecer al administrador la descarga de las solicitudes registr
 - **THEN** el sistema rechaza el valor inválido en lugar de aplicarlo
 - **AND** responde sin error
 
-### Requirement: Formato y seguridad del fichero CSV
-
-El sistema SHALL generar un CSV correcto para su apertura en una hoja de cálculo, escapando los caracteres especiales de cada valor y evitando que un valor de dato se interprete como fórmula.
-
-#### Scenario: Cabecera y columnas
-
-- **WHEN** se genera un CSV
-- **THEN** la primera fila es la cabecera con el nombre de cada columna
-- **AND** cada fila posterior corresponde a una solicitud
-- **AND** el número de valores de cada fila coincide con el de la cabecera
-
-#### Scenario: Acentos legibles en hoja de cálculo
-
-- **WHEN** se abre el CSV descargado en una hoja de cálculo
-- **THEN** los caracteres acentuados y la letra ñ se muestran correctamente
-
-#### Scenario: Valores con comas y comillas
-
-- **WHEN** un valor de la solicitud contiene una coma, comillas dobles o un salto de línea
-- **THEN** el CSV lo representa respetando el formato de campos entrecomillado
-- **AND** al reimportar el fichero, ese valor se recupera íntegro
-
-#### Scenario: Neutralización de fórmulas
-
-- **WHEN** un valor de la solicitud empieza por `=`, `+`, `-` o `@`
-- **THEN** el sistema lo neutraliza en el CSV para que una hoja de cálculo no lo ejecute como fórmula
-
-#### Scenario: Neutralización de fórmulas en la cabecera de la petición
-
-- **WHEN** un valor empieza por uno de los caracteres anteriores
-- **THEN** el sistema lo prefija de forma que el valor original se conserve al reimportar
-
-#### Scenario: Exclusión de información interna
-
-- **WHEN** se genera el CSV
-- **THEN** no incluye las notas internas de la solicitud
-- **AND** no incluye el historial de cambios de estado
-- **AND** no incluye el motivo de los fallos de notificación
-
-#### Scenario: Estabilidad del orden
-
-- **WHEN** se.exporta dos veces el mismo conjunto de solicitudes sin cambios entre ambas descargas
-- **THEN** ambas exportaciones contienen las mismas solicitudes en el mismo orden
-
-### Requirement: Descarga identificable
-
-El sistema SHALL entregar el CSV como fichero adjunto, con un nombre que identifique su contenido y la fecha de generación, y con la codificación declarada de forma explícita.
-
-#### Scenario: El fichero se descarga como adjunto
-
-- **WHEN** el administrador completa la descarga
-- **THEN** la respuesta indica que el contenido es una descarga adjunta y no una página web
-- **AND** declara la codificación de caracteres del fichero
-- **AND** el nombre del fichero incluye la fecha de generación
+## ADDED Requirements
 
 ### Requirement: Columnas de la exportación de solicitudes
 
@@ -131,4 +75,3 @@ El CSV de exportación SHALL recoger el conjunto de datos vigente de la solicitu
 - **WHEN** se genera el CSV
 - **THEN** una solicitud con muchas personas de la relación ocupa una única fila
 - **AND** no incluye una fila por persona de la relación
-

@@ -9,31 +9,28 @@ datasource db {
 
 // Solicitud de firma digital recibida desde el formulario público.
 //
-// `status`, `certificateType` y `documentType` son String y no enum: SQLite no
-// aplica restricciones de tipo, y la validez de estos valores la garantizan el
-// schema zod (lib/request-status.ts, lib/validation.ts) y la capa de tipos del
-// DAL. Ver design.md D2.
+// `status` y `signerMode` son String y no enum: SQLite no aplica restricciones
+// de tipo, y la validez de estos valores la garantizan el schema zod
+// (lib/request-status.ts, lib/validation.ts) y la capa de tipos del DAL.
+// Ver design.md D3.
 model SignatureRequest {
   id String @id @default(cuid())
 
   // Datos de contacto
-  fullName    String
-  email       String
-  phone       String
-  companyName String
-  nif         String
-  address     String?
-  position    String
-
-  // Datos de identidad
-  documentType   String
-  documentNumber String
-  country        String
+  fullName          String
+  email             String
+  phone             String
+  personalAddress   String?
+  personalIdNumber  String?
+  companyName       String
+  businessName      String
+  reeupCode         String
+  address           String?
 
   // Solicitud
-  certificateType String
-  message         String?
-  privacyConsent  Boolean
+  signerMode     String       @default("personal")
+  message        String?
+  privacyConsent Boolean
 
   // Gestión interna
   status               String       @default("NEW")
@@ -45,11 +42,35 @@ model SignatureRequest {
   updatedAt DateTime @updatedAt
 
   events RequestStatusEvent[]
+  applicants RequestApplicant[]
 
   @@index([status, createdAt])
-  @@index([certificateType])
+  @@index([signerMode])
   @@index([email])
   @@map("signature_requests")
+}
+
+// Relación de solicitantes de una solicitud en modo «varias personas».
+//
+// Es una tabla y no una columna JSON porque el panel necesita contar, mostrar y
+// buscar por nombre de solicitante. `onDelete: Cascade` replica lo que hace
+// `RequestStatusEvent`. Ver design.md D1.
+model RequestApplicant {
+  id String @id @default(cuid())
+
+  requestId String
+  fullName  String
+  idNumber  String
+  address   String
+  email     String
+  phone     String
+  // Orden en que se añadieron a la relación.
+  position  Int
+
+  request SignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("request_applicants")
 }
 
 // Historial append-only de transiciones de estado (design.md D6).

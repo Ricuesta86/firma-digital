@@ -1,43 +1,4 @@
-# admin-dashboard Specification
-
-## Purpose
-Interfaz de administración de solicitudes: listado paginado con búsqueda y filtros, ficha de detalle, métricas agregadas y acceso exclusivo para el administrador autenticado.
-## Requirements
-### Requirement: Listado paginado de solicitudes
-
-El sistema SHALL presentar al administrador un listado paginado de las solicitudes registradas, ordenadas de la más reciente a la más antigua, y SHALL indicar el total de solicitudes que cumplen los criterios activos.
-
-#### Scenario: Página inicial
-
-- **WHEN** un administrador abre el panel sin indicar filtros ni página
-- **THEN** el sistema muestra la primera página de solicitudes
-- **AND** las solicitudes aparecen ordenadas de más reciente a más antigua
-- **AND** se indica el número total de solicitudes
-
-#### Scenario: Recorrido de páginas
-
-- **WHEN** el administrador navega a una página posterior
-- **THEN** el sistema muestra el bloque de solicitudes correspondiente a esa página
-- **AND** se indica la página actual y el número total de páginas
-- **AND** los filtros activos se conservan al cambiar de página
-
-#### Scenario: Número de página fuera de rango
-
-- **WHEN** el administrador solicita una página que no existe
-- **THEN** el sistema responde con la indicación de que no hay resultados
-- **AND** no muestra datos de otra página
-
-#### Scenario: Tamaño de página fijo
-
-- **WHEN** existen más solicitudes que el tamaño de página configurado
-- **THEN** el listado muestra el número máximo de solicitudes por página definido
-- **AND** el resto queda disponible en páginas siguientes
-
-#### Scenario: Sin solicitudes registradas
-
-- **WHEN** no hay ninguna solicitud en la base de datos
-- **THEN** el sistema muestra un estado vacío explicativo
-- **AND** no muestra una tabla de resultados vacía sin explicación
+## MODIFIED Requirements
 
 ### Requirement: Búsqueda y filtrado
 
@@ -167,19 +128,3 @@ El sistema SHALL mostrar en el panel un resumen del volumen de solicitudes, con 
 
 - **WHEN** el administrador cambia el estado de una solicitud
 - **THEN** las métricas de la siguiente carga ya reflejan el nuevo reparto por estado
-
-### Requirement: Acceso exclusivo del administrador
-
-El sistema SHALL presentar el contenido del panel únicamente a un administrador con sesión válida, y SHALL mantener la web pública sin ningún enlace ni referencia que permita el acceso directo.
-
-#### Scenario: Visitante no autenticado
-
-- **WHEN** un visitante no autenticado accede a la URL del panel
-- **THEN** no obtiene ninguna información de las solicitudes
-
-#### Scenario: Estructura visual del panel
-
-- **WHEN** el administrador navega por el panel
-- **THEN** dispone de un encabezado que identifica la sección, un acceso para cerrar sesión y una navegación de retorno a la web pública
-- **AND** todas las páginas del panel comparten la misma estructura visual
-

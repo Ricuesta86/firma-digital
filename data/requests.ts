@@ -3,7 +3,11 @@ import "server-only";
 import { z } from "zod";
 
 import { prisma } from "@/data/db";
-import { certificateTypes, documentTypes, type RequestPayload } from "@/lib/validation";
+import {
+  isSignerMode,
+  type Applicant,
+  type RequestPayload,
+} from "@/lib/validation";
 import {
   DEFAULT_REQUEST_STATUS,
   canTransition,
@@ -32,14 +36,27 @@ export const MAX_PAGE_SIZE = 100;
 /*                                    DTOs                                    */
 /* -------------------------------------------------------------------------- */
 
+/** Una persona de la relación de solicitantes, en el orden en que se añadió. */
+export type RequestApplicantDto = {
+  id: string;
+  fullName: string;
+  idNumber: string;
+  address: string;
+  email: string;
+  phone: string;
+  position: number;
+};
+
 /** Fila del listado: solo los campos que la tabla necesita. */
 export type RequestListItemDto = {
   id: string;
   fullName: string;
   email: string;
   companyName: string;
-  nif: string;
-  certificateType: string;
+  reeupCode: string;
+  signerMode: string;
+  /** Contador de la relación: el listado no trae las filas (design.md D1). */
+  applicantCount: number;
   status: RequestStatus;
   createdAt: Date;
 };
@@ -52,20 +69,19 @@ export type RequestStatusEventDto = {
   createdAt: Date;
 };
 
-/** Ficha completa, con datos personales, notas e historial. */
+/** Ficha completa, con datos personales, notas, historial y relación. */
 export type RequestDetailDto = {
   id: string;
   fullName: string;
   email: string;
   phone: string;
+  personalAddress: string | null;
+  personalIdNumber: string | null;
   companyName: string;
-  nif: string;
+  businessName: string;
+  reeupCode: string;
   address: string | null;
-  position: string;
-  documentType: string;
-  documentNumber: string;
-  country: string;
-  certificateType: string;
+  signerMode: string;
   message: string | null;
   privacyConsent: boolean;
   status: RequestStatus;
@@ -74,6 +90,7 @@ export type RequestDetailDto = {
   notificationError: string | null;
   createdAt: Date;
   updatedAt: Date;
+  applicants: RequestApplicantDto[];
   events: RequestStatusEventDto[];
 };
 
@@ -88,7 +105,7 @@ export type RequestListDto = {
 export type RequestMetricsDto = {
   total: number;
   byStatus: Record<RequestStatus, number>;
-  byCertificateType: Array<{ certificateType: string; count: number }>;
+  bySignerMode: Array<{ signerMode: string; count: number }>;
 };
 
 export class RequestError extends Error {
@@ -123,14 +140,10 @@ const statusFilterSchema = z
   .string()
   .optional()
   .transform((value) => (isRequestStatus(value) ? value : undefined));
-const certificateTypeFilterSchema = z
+const signerModeFilterSchema = z
   .string()
   .optional()
-  .transform((value) =>
-    (certificateTypes as readonly string[]).includes(value ?? "")
-      ? value
-      : undefined,
-  );
+  .transform((value) => (isSignerMode(value) ? value : undefined));
 const searchSchema = z
   .string()
   .max(200)
@@ -143,7 +156,7 @@ const searchSchema = z
 export type RequestFilters = {
   q?: string;
   status?: RequestStatus;
-  certificateType?: string;
+  signerMode?: string;
   page?: number;
   pageSize?: number;
 };
@@ -163,9 +176,7 @@ export function parseRequestFilters(
   return {
     q: searchSchema.parse(first(raw.q)),
     status: statusFilterSchema.parse(first(raw.status)),
-    certificateType: certificateTypeFilterSchema.parse(
-      first(raw.certificateType),
-    ),
+    signerMode: signerModeFilterSchema.parse(first(raw.signerMode)),
     page: pageSchema.parse(first(raw.page)),
     pageSize: pageSizeSchema.parse(first(raw.pageSize)),
   };
@@ -178,17 +189,21 @@ function buildWhere(filters: RequestFilters) {
     where.status = filters.status;
   }
 
-  if (filters.certificateType) {
-    where.certificateType = filters.certificateType;
+  if (filters.signerMode) {
+    where.signerMode = filters.signerMode;
   }
 
   if (filters.q) {
-    // Búsqueda por `contains` (design.md D8).
+    // Búsqueda por `contains` (design.md D8). La relación de solicitantes se
+    // alcanza con una subconsulta `some`, para poder encontrar la solicitud de
+    // una empresa a partir del nombre de uno de sus empleados (design.md D9).
     where.OR = [
       { fullName: { contains: filters.q } },
       { email: { contains: filters.q } },
       { companyName: { contains: filters.q } },
-      { nif: { contains: filters.q } },
+      { businessName: { contains: filters.q } },
+      { reeupCode: { contains: filters.q } },
+      { applicants: { some: { fullName: { contains: filters.q } } } },
     ];
   }
 
@@ -220,10 +235,13 @@ export async function getRequests(
         fullName: true,
         email: true,
         companyName: true,
-        nif: true,
-        certificateType: true,
+        reeupCode: true,
+        signerMode: true,
         status: true,
         createdAt: true,
+        // El listado cuenta la relación pero no la trae: son cinco campos por
+        // persona y solo hacen falta en la ficha (design.md D1).
+        _count: { select: { applicants: true } },
       },
     }),
     prisma.signatureRequest.count({ where }),
@@ -243,18 +261,20 @@ function toListItem(row: {
   fullName: string;
   email: string;
   companyName: string;
-  nif: string;
-  certificateType: string;
+  reeupCode: string;
+  signerMode: string;
   status: string;
   createdAt: Date;
+  _count: { applicants: number };
 }): RequestListItemDto {
   return {
     id: row.id,
     fullName: row.fullName,
     email: row.email,
     companyName: row.companyName,
-    nif: row.nif,
-    certificateType: row.certificateType,
+    reeupCode: row.reeupCode,
+    signerMode: row.signerMode,
+    applicantCount: row._count.applicants,
     status: isRequestStatus(row.status) ? row.status : "NEW",
     createdAt: row.createdAt,
   };
@@ -267,7 +287,10 @@ export async function getRequestById(
 
   const row = await prisma.signatureRequest.findUnique({
     where: { id },
-    include: { events: { orderBy: { createdAt: "asc" } } },
+    include: {
+      events: { orderBy: { createdAt: "asc" } },
+      applicants: { orderBy: { position: "asc" } },
+    },
   });
 
   if (!row) {
@@ -276,6 +299,7 @@ export async function getRequestById(
 
   return {
     ...row,
+    applicants: row.applicants.map(toApplicant),
     status: isRequestStatus(row.status) ? row.status : "NEW",
     events: row.events.map((event) => ({
       id: event.id,
@@ -299,10 +323,10 @@ export async function getMetrics(): Promise<RequestMetricsDto> {
     _count: { _all: true },
     orderBy: { status: "asc" },
   });
-  const byTypeRows = await prisma.signatureRequest.groupBy({
-    by: ["certificateType"],
+  const bySignerModeRows = await prisma.signatureRequest.groupBy({
+    by: ["signerMode"],
     _count: { _all: true },
-    orderBy: { _count: { certificateType: "desc" } },
+    orderBy: { _count: { signerMode: "desc" } },
   });
 
   const byStatus = {
@@ -320,8 +344,8 @@ export async function getMetrics(): Promise<RequestMetricsDto> {
   return {
     total,
     byStatus,
-    byCertificateType: byTypeRows.map((row) => ({
-      certificateType: row.certificateType,
+    bySignerMode: bySignerModeRows.map((row) => ({
+      signerMode: row.signerMode,
       count: row._count._all,
     })),
   };
@@ -343,6 +367,8 @@ export async function getRequestsForExport(
   const rows = await prisma.signatureRequest.findMany({
     where: buildWhere(filters),
     orderBy: { createdAt: "desc" },
+    // Una fila por solicitud: la relación de solicitantes no se exporta al CSV
+    // (spec request-export).
     select: {
       id: true,
       createdAt: true,
@@ -350,14 +376,13 @@ export async function getRequestsForExport(
       fullName: true,
       email: true,
       phone: true,
+      personalAddress: true,
+      personalIdNumber: true,
       companyName: true,
-      nif: true,
+      businessName: true,
+      reeupCode: true,
       address: true,
-      position: true,
-      documentType: true,
-      documentNumber: true,
-      country: true,
-      certificateType: true,
+      signerMode: true,
       message: true,
     },
   });
@@ -379,27 +404,91 @@ export async function getRequestsForExport(
  * No verifica sesión porque lo invoca el formulario de la landing.
  */
 export async function createRequest(payload: RequestPayload): Promise<string> {
+  // La relación se crea anidada en la misma operación: o se guarda la solicitud
+  // con sus solicitantes, o no se guarda nada (design.md D1 y D4).
   const created = await prisma.signatureRequest.create({
     data: {
       fullName: payload.fullName,
       email: payload.email,
       phone: payload.phone,
+      personalAddress: payload.personalAddress,
+      personalIdNumber: payload.personalIdNumber,
       companyName: payload.companyName,
-      nif: payload.nif,
+      businessName: payload.businessName,
+      reeupCode: payload.reeupCode,
       address: payload.address,
-      position: payload.position,
-      documentType: payload.documentType,
-      documentNumber: payload.documentNumber,
-      country: payload.country,
-      certificateType: payload.certificateType,
+      signerMode: payload.signerMode,
       message: payload.message,
       privacyConsent: payload.privacyConsent,
       status: DEFAULT_REQUEST_STATUS,
+      applicants: {
+        create: (payload.applicants ?? []).map((applicant, index) => ({
+          ...toApplicantFields(applicant),
+          // El índice fija el orden de alta, que el panel y el correo respetan.
+          position: index,
+        })),
+      },
     },
     select: { id: true },
   });
 
   return created.id;
+}
+
+function toApplicantFields(applicant: Applicant) {
+  return {
+    fullName: applicant.fullName,
+    idNumber: applicant.idNumber,
+    address: applicant.address,
+    email: applicant.email,
+    phone: applicant.phone,
+  };
+}
+
+function toApplicant(row: {
+  id: string;
+  fullName: string;
+  idNumber: string;
+  address: string;
+  email: string;
+  phone: string;
+  position: number;
+}): RequestApplicantDto {
+  return {
+    id: row.id,
+    fullName: row.fullName,
+    idNumber: row.idNumber,
+    address: row.address,
+    email: row.email,
+    phone: row.phone,
+    position: row.position,
+  };
+}
+
+/**
+ * Relación de solicitantes de una solicitud, en el orden de alta. La usa la
+ * ficha de detalle y cualquier vista que necesite las filas (design.md D1).
+ */
+export async function getRequestApplicants(
+  id: string,
+): Promise<RequestApplicantDto[]> {
+  await requireAuthenticated();
+
+  const rows = await prisma.requestApplicant.findMany({
+    where: { requestId: id },
+    orderBy: { position: "asc" },
+    select: {
+      id: true,
+      fullName: true,
+      idNumber: true,
+      address: true,
+      email: true,
+      phone: true,
+      position: true,
+    },
+  });
+
+  return rows.map(toApplicant);
 }
 
 /** Registra el resultado del aviso por correo (best-effort, design.md D7). */
@@ -531,5 +620,3 @@ async function requireAuthenticated(): Promise<void> {
     throw new RequestError("unauthorized", "No autorizado.");
   }
 }
-
-export { certificateTypes, documentTypes };

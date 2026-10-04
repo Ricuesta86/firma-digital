@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useActionState } from "react";
 import { requestSignature, type RequestState } from "@/app/actions/request-signature";
-import { certificateTypes, documentTypes } from "@/lib/validation";
+import { ApplicantRosterModal } from "@/components/applicant-roster-modal";
+import {
+  signerModes,
+  signerModeLabels,
+  type Applicant,
+} from "@/lib/validation";
 
 const initialState: RequestState = { status: "idle" };
 
@@ -60,11 +65,48 @@ export function ContactForm() {
   );
   const formRef = useRef<HTMLFormElement>(null);
 
+  const [signerMode, setSignerMode] = useState<string>("");
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [rosterOpen, setRosterOpen] = useState(false);
+
+  // Tras un error de validación la relación y el modo vuelven en el estado de la
+  // acción: se reponen aquí para que el modal no se presente vacío
+  // (design.md D4). `useActionState` devuelve un objeto nuevo en cada envío, así
+  // que la comparación es por identidad y se ajusta el estado durante el render
+  // en lugar de provocar renders en cascada desde un efecto.
+  const [rehydratedState, setRehydratedState] = useState<RequestState | null>(null);
+
+  if (state !== rehydratedState) {
+    setRehydratedState(state);
+
+    if (state.status === "error") {
+      if (state.applicants) {
+        setApplicants(state.applicants);
+      }
+
+      if (state.signerMode) {
+        setSignerMode(state.signerMode);
+      }
+
+      // Si el error está en la relación, el modal se reabre para que el visitante
+      // vea qué fila hay que corregir.
+      const relacioConErrores = Object.keys(state.fieldErrors ?? {}).some(
+        (key) => key.startsWith("applicants"),
+      );
+
+      setRosterOpen(relacioConErrores);
+    }
+  }
+
+  // El formulario se desmonta al mostrar el aviso de éxito, así que solo hay que
+  // limpiar los campos del DOM que quedan fuera de la vista de éxito.
   useEffect(() => {
     if (state.status === "success") {
       formRef.current?.reset();
     }
   }, [state.status]);
+
+  const esModoMultiple = signerMode === "multiple";
 
   return (
     <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl shadow-zinc-900/5 sm:p-10">
@@ -142,9 +184,7 @@ export function ContactForm() {
                     type="email"
                     required
                     className={
-                      state.fieldErrors?.email
-                        ? errorInputClasses
-                        : inputClasses
+                      state.fieldErrors?.email ? errorInputClasses : inputClasses
                     }
                   />
                 </Field>
@@ -161,10 +201,21 @@ export function ContactForm() {
                     type="tel"
                     required
                     className={
-                      state.fieldErrors?.phone
-                        ? errorInputClasses
-                        : inputClasses
+                      state.fieldErrors?.phone ? errorInputClasses : inputClasses
                     }
+                  />
+                </Field>
+
+                <Field
+                  id="personalAddress"
+                  label="Dirección"
+                  error={state.fieldErrors?.personalAddress?.[0]}
+                >
+                  <input
+                    id="personalAddress"
+                    name="personalAddress"
+                    type="text"
+                    className={inputClasses}
                   />
                 </Field>
               </div>
@@ -192,35 +243,18 @@ export function ContactForm() {
                 </Field>
 
                 <Field
-                  id="nif"
-                  label="NIF/CIF"
+                  id="businessName"
+                  label="Nombre de la empresa"
                   required
-                  error={state.fieldErrors?.nif?.[0]}
+                  error={state.fieldErrors?.businessName?.[0]}
                 >
                   <input
-                    id="nif"
-                    name="nif"
+                    id="businessName"
+                    name="businessName"
                     type="text"
                     required
                     className={
-                      state.fieldErrors?.nif ? errorInputClasses : inputClasses
-                    }
-                  />
-                </Field>
-
-                <Field
-                  id="position"
-                  label="Cargo en la empresa"
-                  required
-                  error={state.fieldErrors?.position?.[0]}
-                >
-                  <input
-                    id="position"
-                    name="position"
-                    type="text"
-                    required
-                    className={
-                      state.fieldErrors?.position
+                      state.fieldErrors?.businessName
                         ? errorInputClasses
                         : inputClasses
                     }
@@ -228,8 +262,25 @@ export function ContactForm() {
                 </Field>
 
                 <Field
+                  id="reeupCode"
+                  label="Código REEUP"
+                  required
+                  error={state.fieldErrors?.reeupCode?.[0]}
+                >
+                  <input
+                    id="reeupCode"
+                    name="reeupCode"
+                    type="text"
+                    required
+                    className={
+                      state.fieldErrors?.reeupCode ? errorInputClasses : inputClasses
+                    }
+                  />
+                </Field>
+
+                <Field
                   id="address"
-                  label="Dirección"
+                  label="Dirección de la empresa"
                   error={state.fieldErrors?.address?.[0]}
                 >
                   <input
@@ -242,102 +293,94 @@ export function ContactForm() {
               </div>
             </Fieldset>
 
-            <Fieldset legend="Verificación de identidad">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field
-                  id="documentType"
-                  label="Tipo de documento"
-                  required
-                  error={state.fieldErrors?.documentType?.[0]}
-                >
-                  <select
-                    id="documentType"
-                    name="documentType"
-                    required
-                    className={
-                      state.fieldErrors?.documentType
-                        ? errorInputClasses
-                        : inputClasses
-                    }
-                  >
-                    <option value="" disabled hidden>
-                      Selecciona…
-                    </option>
-                    {documentTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field
-                  id="documentNumber"
-                  label="Número de documento"
-                  required
-                  error={state.fieldErrors?.documentNumber?.[0]}
-                >
-                  <input
-                    id="documentNumber"
-                    name="documentNumber"
-                    type="text"
-                    required
-                    className={
-                      state.fieldErrors?.documentNumber
-                        ? errorInputClasses
-                        : inputClasses
-                    }
-                  />
-                </Field>
-
-                <Field
-                  id="country"
-                  label="País de residencia"
-                  required
-                  error={state.fieldErrors?.country?.[0]}
-                >
-                  <input
-                    id="country"
-                    name="country"
-                    type="text"
-                    required
-                    className={
-                      state.fieldErrors?.country
-                        ? errorInputClasses
-                        : inputClasses
-                    }
-                  />
-                </Field>
-              </div>
-            </Fieldset>
-
             <Fieldset legend="Solicitud">
-              <Field
-                id="certificateType"
-                label="Tipo de certificado"
-                required
-                error={state.fieldErrors?.certificateType?.[0]}
-              >
-                <select
-                  id="certificateType"
-                  name="certificateType"
-                  required
-                  className={
-                    state.fieldErrors?.certificateType
-                      ? errorInputClasses
-                      : inputClasses
-                  }
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-zinc-700">
+                  ¿Para quién es la firma?
+                  <span className="text-red-500"> *</span>
+                </p>
+                <div
+                  role="radiogroup"
+                  aria-label="Modo de firmante"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                 >
-                  <option value="" disabled hidden>
-                    Selecciona…
-                  </option>
-                  {certificateTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
+                  {signerModes.map((mode) => (
+                    <label
+                      key={mode}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                        signerMode === mode
+                          ? "border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-500/30"
+                          : "border-zinc-300 bg-white hover:border-zinc-400"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="signerMode"
+                        value={mode}
+                        checked={signerMode === mode}
+                        onChange={() => setSignerMode(mode)}
+                        className="mt-0.5 size-4 shrink-0 accent-indigo-600"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-zinc-900">
+                          {signerModeLabels[mode]}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-zinc-600">
+                          {mode === "personal"
+                            ? "Un único firmante, con su carnet de identidad."
+                            : "Una relación de personas, con alta, carga masiva y envío conjunto."}
+                        </span>
+                      </span>
+                    </label>
                   ))}
-                </select>
-              </Field>
+                </div>
+                {state.fieldErrors?.signerMode && (
+                  <p className="text-xs font-medium text-red-600">
+                    {state.fieldErrors.signerMode[0]}
+                  </p>
+                )}
+              </div>
+
+              {/* El carnet solo se pide al firmante único: en modo múltiple va
+                  por cada solicitante, dentro del modal (design.md D3). */}
+              {signerMode === "personal" && (
+                <Field
+                  id="personalIdNumber"
+                  label="Número de carnet de identidad"
+                  required
+                  error={state.fieldErrors?.personalIdNumber?.[0]}
+                >
+                  <input
+                    id="personalIdNumber"
+                    name="personalIdNumber"
+                    type="text"
+                    className={
+                      state.fieldErrors?.personalIdNumber
+                        ? errorInputClasses
+                        : inputClasses
+                    }
+                  />
+                </Field>
+              )}
+
+              {/* Las acciones de gestión solo existen en modo múltiple. */}
+              {esModoMultiple && (
+                <ApplicantRosterModal
+                  applicants={applicants}
+                  onChange={setApplicants}
+                  open={rosterOpen}
+                  onOpenChange={setRosterOpen}
+                  fieldErrors={state.fieldErrors}
+                />
+              )}
+
+              {/* La relación viaja al servidor en un único campo oculto con JSON,
+                  en el mismo envío (design.md D4). */}
+              <input
+                type="hidden"
+                name="applicants"
+                value={esModoMultiple ? JSON.stringify(applicants) : ""}
+              />
 
               <Field
                 id="message"

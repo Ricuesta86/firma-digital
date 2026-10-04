@@ -1,50 +1,118 @@
 "use server";
 
-import { requestSchema } from "@/lib/validation";
+import { z } from "zod";
+
 import { sendRequestEmail } from "@/lib/email";
+import {
+  requestSchema,
+  type Applicant,
+  type RequestPayload,
+} from "@/lib/validation";
 import { createRequest, recordNotificationResult } from "@/data/requests";
 
 export type RequestState = {
   status: "idle" | "success" | "error";
   message?: string;
   fieldErrors?: Record<string, string[]>;
+  /**
+   * Relación rehidratada tras un error de validación, para que el modal
+   * vuelva a mostrar lo que el visitante ya había tecleado (design.md D4).
+   */
+  applicants?: Applicant[];
+  signerMode?: RequestPayload["signerMode"];
 };
 
 function flattenIssues(
   error: import("zod").ZodError,
 ): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {};
+
   for (const issue of error.issues) {
-    const key = String(issue.path[0] ?? "form");
+    // La ruta completa, no solo su primer elemento: los errores de un
+    // solicitante llegan como `applicants.3.email` y el modal los pinta en la fila
+    // que los originó (design.md D4).
+    const key = issue.path.length > 0 ? issue.path.join(".") : "form";
     (fieldErrors[key] ??= []).push(issue.message);
   }
+
   return fieldErrors;
 }
 
 const SUCCESS_MESSAGE =
   "¡Solicitud enviada! Te contactaremos con los siguientes pasos para la emisión de tu firma digital.";
 
+/**
+ * La relación viaja en un único campo oculto con JSON. Un array vacío se
+ * normaliza a `undefined`: así el esquema discrimina sin que un formulario en
+ * modo «Personal» tenga que omitir el campo.
+ */
+const applicantsJsonSchema = z.array(z.unknown());
+
+function parseApplicants(raw: FormDataEntryValue | null): {
+  applicants?: Applicant[];
+  malformed: boolean;
+} {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return { malformed: false };
+  }
+
+  try {
+    const parsedJson = applicantsJsonSchema.parse(JSON.parse(raw));
+
+    // Se filtran las entradas no-objeto: el array definitivo lo valida
+    // `requestSchema`, fila a fila, con mensajes por su ruta.
+    return {
+      applicants: parsedJson.filter(
+        (entry): entry is Applicant =>
+          typeof entry === "object" && entry !== null && !Array.isArray(entry),
+      ),
+      malformed: false,
+    };
+  } catch {
+    return { malformed: true };
+  }
+}
+
 export async function requestSignature(
   _prevState: RequestState,
   formData: FormData,
 ): Promise<RequestState> {
+  const { applicants, malformed } = parseApplicants(formData.get("applicants"));
+
   const raw = {
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     phone: formData.get("phone"),
-    companyName: formData.get("companyName"),
-    nif: formData.get("nif"),
+    signerMode: formData.get("signerMode"),
     // Campos opcionales: si el cliente no los envía, `FormData.get` devuelve
     // `null` y el schema (que espera `undefined`) los rechazaría.
+    personalAddress: formData.get("personalAddress") ?? undefined,
+    personalIdNumber: formData.get("personalIdNumber") ?? undefined,
+    companyName: formData.get("companyName"),
+    businessName: formData.get("businessName"),
+    reeupCode: formData.get("reeupCode"),
     address: formData.get("address") ?? undefined,
-    position: formData.get("position"),
-    documentType: formData.get("documentType"),
-    documentNumber: formData.get("documentNumber"),
-    country: formData.get("country"),
-    certificateType: formData.get("certificateType"),
     message: formData.get("message") ?? undefined,
     privacyConsent: formData.get("privacyConsent") === "on",
+    applicants:
+      applicants && applicants.length > 0 ? applicants : undefined,
   };
+
+  // Un JSON malformado no lanza: se devuelve como error de validación del
+  // formulario, que es donde el visitante puede corregirlo.
+  if (malformed) {
+    return {
+      status: "error",
+      message: "Revisa los campos marcados e inténtalo de nuevo.",
+      fieldErrors: {
+        applicants: [
+          "No se ha podido leer la relación de solicitantes. Vuelve a cargarla.",
+        ],
+      },
+      applicants,
+      signerMode: raw.signerMode === "multiple" ? "multiple" : "personal",
+    };
+  }
 
   const parsed = requestSchema.safeParse(raw);
 
@@ -53,6 +121,11 @@ export async function requestSignature(
       status: "error",
       message: "Revisa los campos marcados e inténtalo de nuevo.",
       fieldErrors: flattenIssues(parsed.error),
+      // La relación y el modo vuelven en el estado para que el modal se
+      // rehidrate en lugar de presentarse vacío (design.md D4).
+      applicants,
+      signerMode:
+        raw.signerMode === "multiple" ? "multiple" : "personal",
     };
   }
 
@@ -71,6 +144,9 @@ export async function requestSignature(
   }
 
   try {
+    // Incluye la generación y el envío del adjunto en modo «varias personas»:
+    // cualquier fallo aquí cae en este mismo `catch` best-effort y no en uno
+    // aparte (design.md D7).
     await sendRequestEmail(parsed.data);
     await recordNotificationResult(requestId, { sent: true });
   } catch (error) {

@@ -3,6 +3,7 @@ import {
   requestStatuses,
   type RequestStatus,
 } from "@/lib/request-status";
+import { signerModeLabels } from "@/lib/validation";
 import type { RequestMetricsDto } from "@/data/requests";
 
 const accents: Record<RequestStatus, string> = {
@@ -13,9 +14,9 @@ const accents: Record<RequestStatus, string> = {
 };
 
 export function MetricsCards({ metrics }: { metrics: RequestMetricsDto }) {
-  const maxType = Math.max(
+  const maxSignerMode = Math.max(
     1,
-    ...metrics.byCertificateType.map((row) => row.count),
+    ...metrics.bySignerMode.map((row) => row.count),
   );
 
   return (
@@ -45,24 +46,27 @@ export function MetricsCards({ metrics }: { metrics: RequestMetricsDto }) {
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-zinc-900">
-          Solicitudes por tipo de certificado
+          Solicitudes por modo de firmante
         </h2>
-        {metrics.byCertificateType.length === 0 ? (
+        {metrics.bySignerMode.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">
             Todavía no hay solicitudes registradas.
           </p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {metrics.byCertificateType.map((row) => (
-              <li key={row.certificateType}>
+            {metrics.bySignerMode.map((row) => (
+              <li key={row.signerMode}>
                 <div className="flex items-baseline justify-between gap-4 text-sm">
-                  <span className="text-zinc-700">{row.certificateType}</span>
+                  <span className="text-zinc-700">
+                    {signerModeLabels[row.signerMode as keyof typeof signerModeLabels] ??
+                      row.signerMode}
+                  </span>
                   <span className="font-medium text-zinc-900">{row.count}</span>
                 </div>
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
                   <div
                     className="h-full rounded-full bg-indigo-500"
-                    style={{ width: `${(row.count / maxType) * 100}%` }}
+                    style={{ width: `${(row.count / maxSignerMode) * 100}%` }}
                   />
                 </div>
               </li>

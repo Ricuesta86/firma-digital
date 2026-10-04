@@ -9,6 +9,7 @@ import {
 import { StatusBadge } from "@/components/admin/status-badge";
 import { StatusTimeline } from "@/components/admin/status-timeline";
 import { formatDateTime } from "@/components/admin/requests-table";
+import { signerModeLabels } from "@/lib/validation";
 import { requireAdmin } from "@/data/auth";
 import { getRequestById } from "@/data/requests";
 
@@ -112,34 +113,32 @@ export default async function RequestDetailPage({
               <Field label="Nombre completo" value={request.fullName} />
               <Field label="Email" value={request.email} />
               <Field label="Teléfono" value={request.phone} />
-              <Field label="País de residencia" value={request.country} />
+              <Field label="Dirección" value={request.personalAddress} />
+              <Field
+                label="Número de carnet de identidad"
+                value={request.personalIdNumber}
+              />
             </dl>
           </Card>
 
           <Card title="Empresa">
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field label="Razón social" value={request.companyName} />
-              <Field label="NIF/CIF" value={request.nif} />
-              <Field label="Cargo" value={request.position} />
+              <Field label="Nombre de la empresa" value={request.businessName} />
+              <Field label="Código REEUP" value={request.reeupCode} />
               <Field label="Dirección" value={request.address} />
-            </dl>
-          </Card>
-
-          <Card title="Verificación de identidad">
-            <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <Field label="Tipo de documento" value={request.documentType} />
-              <Field
-                label="Número de documento"
-                value={request.documentNumber}
-              />
             </dl>
           </Card>
 
           <Card title="Solicitud">
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field
-                label="Tipo de certificado"
-                value={request.certificateType}
+                label="Modo de firmante"
+                value={
+                  signerModeLabels[
+                    request.signerMode as keyof typeof signerModeLabels
+                  ] ?? request.signerMode
+                }
               />
               <Field label="Mensaje" value={request.message} />
             </dl>
@@ -147,6 +146,69 @@ export default async function RequestDetailPage({
               Consentimiento de privacidad aceptado:{" "}
               {request.privacyConsent ? "sí" : "no"}.
             </p>
+          </Card>
+
+          <Card
+            title={`Solicitantes (${request.applicants.length})`}
+          >
+            {request.applicants.length === 0 ? (
+              <p className="text-sm text-zinc-500">
+                {request.signerMode === "multiple"
+                  ? "La solicitud se capturó en modo «Varias Personas» pero no tiene relación de solicitantes."
+                  : "No hay relación de solicitantes: la firma es de un único firmante."}
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-zinc-200">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+                    <tr>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        #
+                      </th>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Nombre y apellidos
+                      </th>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Carnet de identidad
+                      </th>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Dirección
+                      </th>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Email
+                      </th>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Móvil
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {request.applicants.map((applicant, index) => (
+                      <tr key={applicant.id}>
+                        <td className="px-4 py-3 text-zinc-500">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-900">
+                          {applicant.fullName}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-800">
+                          {applicant.idNumber}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-800">
+                          {applicant.address}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-800">
+                          {applicant.email}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-800">
+                          {applicant.phone}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           <Card title="Historial de estados">

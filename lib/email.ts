@@ -1,5 +1,11 @@
 import nodemailer from "nodemailer";
-import type { RequestPayload } from "@/lib/validation";
+
+import {
+  buildRosterFilename,
+  buildRosterWorkbook,
+  rosterContentType,
+} from "@/lib/spreadsheet";
+import { signerModeLabels, type RequestPayload } from "@/lib/validation";
 
 type SmtpConfig = {
   host: string;
@@ -27,23 +33,45 @@ export function getSmtpConfig(): SmtpConfig {
   return { host, port, user: user ?? "", pass: pass ?? "", from, to };
 }
 
-function buildHtmlBody(payload: RequestPayload): string {
-  const rows: Array<[string, string]> = [
+type MultiplePayload = Extract<RequestPayload, { signerMode: "multiple" }>;
+
+/** Guardia de tipo: en modo múltiple la relación siempre existe. */
+function isMultiple(payload: RequestPayload): payload is MultiplePayload {
+  return payload.signerMode === "multiple";
+}
+
+/**
+ * La lista de campos vive en una función para que el HTML y el texto plano no
+ * puedan quedar desfasados entre sí: ambos la consumen.
+ */
+function buildRows(payload: RequestPayload): Array<[string, string]> {
+  return [
     ["Nombre completo", payload.fullName],
     ["Email", payload.email],
     ["Teléfono", payload.phone],
+    ["Dirección", payload.personalAddress ?? "—"],
+    [
+      "Número de carnet de identidad",
+      payload.personalIdNumber ?? "— (se pide por cada solicitante)",
+    ],
     ["Razón social", payload.companyName],
-    ["NIF/CIF", payload.nif],
-    ["Dirección", payload.address ?? "—"],
-    ["Cargo", payload.position],
-    ["Tipo de documento", payload.documentType],
-    ["Número de documento", payload.documentNumber],
-    ["País de residencia", payload.country],
-    ["Certificado solicitado", payload.certificateType],
+    ["Nombre de la empresa", payload.businessName],
+    ["Código REEUP", payload.reeupCode],
+    ["Dirección de la empresa", payload.address ?? "—"],
+    [
+      "Modo de firmante",
+      `${signerModeLabels[payload.signerMode]}${
+        isMultiple(payload)
+          ? ` (${payload.applicants.length} solicitantes en el adjunto)`
+          : ""
+      }`,
+    ],
     ["Mensaje", payload.message ?? "—"],
   ];
+}
 
-  const htmlRows = rows
+function buildHtmlBody(payload: RequestPayload): string {
+  const htmlRows = buildRows(payload)
     .map(
       ([label, value]) =>
         `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;background:#f9fafb;white-space:nowrap">${label}</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${value}</td></tr>`,
@@ -64,19 +92,35 @@ function buildTextBody(payload: RequestPayload): string {
   return [
     "Nueva solicitud de firma digital",
     "--------------------------------",
-    `Nombre: ${payload.fullName}`,
-    `Email: ${payload.email}`,
-    `Teléfono: ${payload.phone}`,
-    `Razón social: ${payload.companyName}`,
-    `NIF/CIF: ${payload.nif}`,
-    `Dirección: ${payload.address ?? "—"}`,
-    `Cargo: ${payload.position}`,
-    `Tipo de documento: ${payload.documentType}`,
-    `Número de documento: ${payload.documentNumber}`,
-    `País de residencia: ${payload.country}`,
-    `Certificado solicitado: ${payload.certificateType}`,
-    `Mensaje: ${payload.message ?? "—"}`,
+    ...buildRows(payload).map(([label, value]) => `${label}: ${value}`),
   ].join("\n");
+}
+
+/**
+ * Adjunto con la relación de solicitantes, solo en modo «varias personas».
+ *
+ * El libro lo genera el mismo `buildRosterWorkbook` que sirve la descarga del
+ * modal, así que el fichero del correo y el descargable son el mismo
+ * (design.md D7). Cualquier fallo al generarlo o enviarlo sube como excepción y
+ * lo captura el `catch` best-effort de la Server Action, que registra el fallo
+ * de notificación sin perder la solicitud ya persistida.
+ */
+async function buildRosterAttachment(
+  payload: RequestPayload,
+): Promise<{ filename: string; content: Buffer; contentType: string }[]> {
+  if (!isMultiple(payload)) {
+    return [];
+  }
+
+  const content = await buildRosterWorkbook(payload.applicants);
+
+  return [
+    {
+      filename: buildRosterFilename(),
+      content,
+      contentType: rosterContentType(),
+    },
+  ];
 }
 
 export async function sendRequestEmail(
@@ -94,6 +138,8 @@ export async function sendRequestEmail(
         : undefined,
   });
 
+  const attachments = await buildRosterAttachment(payload);
+
   await transporter.sendMail({
     from: config.from,
     to: config.to,
@@ -101,5 +147,7 @@ export async function sendRequestEmail(
     subject: `Solicitud de firma digital — ${payload.fullName}`,
     html: buildHtmlBody(payload),
     text: buildTextBody(payload),
+    // Sin adjuntos en modo «Personal»: el aviso sale tal cual, como antes.
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
 }

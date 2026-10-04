@@ -93,8 +93,11 @@ app/
     page.tsx                     Listado con filtros, métricas y paginación
     requests/[id]/page.tsx       Ficha, cambio de estado, notas e historial
   api/admin/export/route.ts      Exportación CSV protegida
+  api/roster/export/route.ts     Descarga de la relación de solicitantes (.xlsx)
+  api/roster/import/route.ts     Importación de la relación (.xlsx/.csv)
 components/
   contact-form.tsx               Formulario de solicitud ('use client')
+  applicant-roster-modal.tsx     Modal de alta/edición/baja e importación de la relación
   admin/                         Login, filtros, tabla, métricas, badges, timeline
 data/
   admin-config.ts                ÚNICO sitio que lee ADMIN_EMAIL/PASSWORD/SECRET
@@ -126,19 +129,25 @@ proxy.ts                         Redirección de navegación de /admin
 
 ## Flujo del formulario
 
-1. El usuario rellena el formulario (datos personales, empresa, verificación de identidad, tipo de certificado y consentimiento RGPD).
+1. El usuario rellena el formulario (datos personales, empresa y consentimiento RGPD) y elige el modo de firmante: **Personal** (un único firmante, con su carnet de identidad) o **Varias Personas** (una relación de solicitantes).
 2. El cliente valida con HTML nativo y envía mediante una Server Action.
-3. El servidor valida el payload con **zod** y devuelve errores por campo si procede.
-4. Si es válido, la solicitud **se guarda en SQLite** (es la fuente de verdad).
-5. A continuación **Nodemailer** envía el aviso a `CONTACT_EMAIL`. Si el envío falla, la solicitud no se pierde: se registra el error y la ficha del panel lo muestra.
+3. El servidor valida el payload con **zod** y devuelve errores por campo si procede. En modo múltiple la relación se valida fila a fila y vuelve en el estado de la acción, de forma que el modal se rehidrata con lo que el visitante ya había escrito.
+4. Si es válido, la solicitud **se guarda en SQLite** junto con sus solicitantes (es la fuente de verdad).
+5. A continuación **Nodemailer** envía el aviso a `CONTACT_EMAIL`. En modo múltiple el aviso lleva adjunto el `.xlsx` de la relación; en modo personal, ningún adjunto. Si el envío falla, la solicitud no se pierde: se registra el error y la ficha del panel lo muestra.
 6. La UI muestra un mensaje de éxito en ambos casos.
+
+### Relación de solicitantes
+
+- El modal permite **añadir**, **editar** y **borrar** filas, además de **importarlas** desde `.xlsx` o `.csv` y de **descargar** una plantilla con la misma cabecera que usa el sistema.
+- La importación es parcial: conserva las filas válidas y señala el número de fila y el campo de las que fallan (códigos 415 formato no admitido, 413 tamaño máximo y 422 filas o cabecera inválidas).
+- Al abrir un `.xlsx` exportado, los valores que empiezan por `=` se guardan como texto, nunca como fórmula.
 
 ## Panel de administración
 
 - Ruta: `/admin`. Credenciales mediante `ADMIN_EMAIL` y `ADMIN_PASSWORD` (una única credencial compartida en esta versión).
 - La sesión es una cookie firmada con HMAC-SHA256 (`fd_admin_session`, `HttpOnly`, `SameSite=Lax`, `Secure` en producción) válida 8 horas.
 - `proxy.ts` solo redirige la navegación. La autorización real la aplica el DAL: cada Server Action y el endpoint de CSV revalidan la sesión por sí mismos.
-- Funciones: listado con búsqueda y filtros (estado, tipo de certificado), métricas, detalle de la solicitud, cambio de estado con historial, notas internas y exportación CSV.
+- Funciones: listado con búsqueda y filtros (estado, modo de firmante), métricas, detalle de la solicitud con su relación de solicitantes, cambio de estado con historial, notas internas y exportación CSV.
 - Estados: `NEW` → `IN_REVIEW` / `REJECTED`, `IN_REVIEW` → `ACCEPTED` / `REJECTED`, y `ACCEPTED` / `REJECTED` → `IN_REVIEW`. Cada transición queda registrada en el historial y no se puede deshacer saltándose la máquina de estados.
 - La exportación CSV (`/api/admin/export`) respeta los mismos filtros que el listado e incluye un BOM UTF-8 para abrirlo directamente en Excel.
 
@@ -254,7 +263,7 @@ El motor de migraciones de Prisma no habla `libsql://`. No es un problema del de
 
 ## Datos personales y copias de seguridad
 
-`data/app.db` contiene datos personales (nombre, email, teléfono, NIF, dirección y documento de identidad) sujetos al RGPD. Está en `.gitignore` y **no debe subirse a ningún repositorio**.
+`data/app.db` contiene datos personales (nombre, email, teléfono, dirección, carnet de identidad, REEUP y la relación de solicitantes) sujetos al RGPD. Está en `.gitignore` y **no debe subirse a ningún repositorio**.
 
 Copia de seguridad:
 

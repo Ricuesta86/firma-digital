@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/admin/status-badge";
+import { signerModeLabels } from "@/lib/validation";
 import type { RequestListDto } from "@/data/requests";
 
 const dateFormatter = new Intl.DateTimeFormat("es-ES", {
@@ -29,7 +30,7 @@ export function RequestsTable({ list }: { list: RequestListDto }) {
                 Empresa
               </th>
               <th scope="col" className="px-5 py-3 font-medium">
-                Certificado
+                Modo de firmante
               </th>
               <th scope="col" className="px-5 py-3 font-medium">
                 Estado
@@ -48,13 +49,20 @@ export function RequestsTable({ list }: { list: RequestListDto }) {
                 <td className="px-5 py-4">
                   <p className="font-medium text-zinc-900">{item.fullName}</p>
                   <p className="text-xs text-zinc-500">{item.email}</p>
-                  <p className="text-xs text-zinc-500">NIF {item.nif}</p>
+                  <p className="text-xs text-zinc-500">REEUP {item.reeupCode}</p>
                 </td>
                 <td className="px-5 py-4 text-zinc-700">
                   {item.companyName}
                 </td>
                 <td className="px-5 py-4 text-zinc-700">
-                  {item.certificateType}
+                  {signerModeLabels[item.signerMode as keyof typeof signerModeLabels] ??
+                    item.signerMode}
+                  {item.applicantCount > 0 && (
+                    <p className="text-xs text-zinc-500">
+                      {item.applicantCount}{" "}
+                      {item.applicantCount === 1 ? "solicitante" : "solicitantes"}
+                    </p>
+                  )}
                 </td>
                 <td className="px-5 py-4">
                   <StatusBadge status={item.status} />

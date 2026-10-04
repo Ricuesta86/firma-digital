@@ -33,7 +33,7 @@ export default async function AdminPage({
   ]);
 
   const hasActiveFilters = Boolean(
-    filters.q || filters.status || filters.certificateType,
+    filters.q || filters.status || filters.signerMode,
   );
 
   const totalLabel =
