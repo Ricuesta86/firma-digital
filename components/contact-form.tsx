@@ -65,7 +65,7 @@ export function ContactForm() {
   );
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [signerMode, setSignerMode] = useState<string>("");
+  const [signerMode, setSignerMode] = useState<string>("personal");
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [rosterOpen, setRosterOpen] = useState(false);
 

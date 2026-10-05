@@ -12,7 +12,7 @@ const plans: Plan[] = [
   {
     name: "Firma Avanzada",
     description: "Ideal para empezar a firmar documentos electrónicos.",
-    price: "29 €",
+    price: "7000 $",
     period: "/año",
     features: [
       "Certificado en software seguro",
@@ -25,7 +25,7 @@ const plans: Plan[] = [
   {
     name: "Firma Cualificada",
     description: "Máxima validez legal para personas físicas.",
-    price: "49 €",
+    price: "8500 $",
     period: "/año",
     features: [
       "Certificado cualificado eIDAS",
@@ -40,7 +40,7 @@ const plans: Plan[] = [
   {
     name: "Sello de Empresa",
     description: "El certificado de tu organización para firmar en su nombre.",
-    price: "89 €",
+    price: "8000 $",
     period: "/año",
     features: [
       "Certificado de sello de empresa (CSE)",
@@ -128,8 +128,8 @@ export function Pricing() {
 
               <ul className="mt-8 space-y-3 text-sm">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-3">
-                    <svg {...checkIcon} className="mt-0.5 text-emerald-500">
+                  <li key={feature} className="flex items-start align-center gap-3">
+                    <svg {...checkIcon} className="mt-0.5 text-emerald-500 h-[30] w-[30]">
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                     <span

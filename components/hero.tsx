@@ -1,6 +1,6 @@
 const stats = [
-  { value: "15+", label: "años emitiendo certificados" },
-  { value: "40.000+", label: "firmas activas" },
+  { value: "1+", label: "años emitiendo certificados" },
+  { value: "200+", label: "firmas activas" },
   { value: "24 h", label: "tiempo medio de emisión" },
 ];
 

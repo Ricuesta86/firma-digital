@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const navLinks = [
@@ -12,10 +13,10 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
         <Link
           href="#inicio"
-          className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
+          className="flex items-center gap-2 text-lg font-bold tracking-tight text-[#1c7d8e]"
         >
           <span className="flex size-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
-            <svg
+            {/* <svg
               className="size-4"
               viewBox="0 0 24 24"
               fill="none"
@@ -27,9 +28,13 @@ export function SiteHeader() {
             >
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </svg>
+            </svg> */}
+            <Image src="/images/logo.png"
+            width={50}
+            height={50}
+            className="" alt="Logo Alabbi" />
           </span>
-          FirmaDigital
+          Alabbi Firma Digital
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm font-medium text-zinc-600 sm:flex">

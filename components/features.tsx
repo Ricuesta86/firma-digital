@@ -19,7 +19,7 @@ const features: Feature[] = [
   {
     title: "Validez jurídica",
     description:
-      "Firmas electrónicas cualificadas con pleno valor legal y reconocimiento en toda la Unión Europea.",
+      "Firmas electrónicas cualificadas con pleno valor legal y reconocimiento en toda Cuba.",
     icon: (
       <svg {...iconProps}>
         <path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6Z" />
@@ -94,7 +94,7 @@ export function Features() {
       <div className="mx-auto w-full max-w-6xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-            ¿Por qué elegir FirmaDigital?
+            ¿Por qué elegir hacer la firma digital con Alabbi S.U.R.L?
           </h2>
           <p className="mt-4 text-lg leading-8 text-zinc-600">
             Emitimos certificados electrónicos de las máximas garantías,

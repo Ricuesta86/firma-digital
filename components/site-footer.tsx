@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 const footerLinks = [
   { href: "#caracteristicas", label: "Características" },
   { href: "#planes", label: "Planes" },
@@ -11,7 +13,7 @@ export function SiteFooter() {
         <div>
           <p className="flex items-center gap-2 text-lg font-bold text-white">
             <span className="flex size-8 items-center justify-center rounded-lg bg-indigo-500 text-white">
-              <svg
+              {/* <svg
                 className="size-4"
                 viewBox="0 0 24 24"
                 fill="none"
@@ -23,9 +25,13 @@ export function SiteFooter() {
               >
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-              </svg>
+              </svg> */}
+              <Image src="/images/logo.png"
+              width={50}
+              height={50}
+              className="" alt="Logo Alabbi" />
             </span>
-            FirmaDigital
+            Alabbi Firma Digital
           </p>
           <p className="mt-3 text-sm leading-6">
             Emisión de certificados y firmas digitales con validez legal.
@@ -53,27 +59,35 @@ export function SiteFooter() {
           <ul className="mt-3 space-y-2 text-sm">
             <li>
               <a
-                href="mailto:solicitudes@firmadigital.es"
+                href="mailto:sabdiel.batista@desoft.cu"
                 className="transition-colors hover:text-white"
               >
-                solicitudes@firmadigital.es
+                sabdiel.batista@desoft.cu
               </a>
             </li>
             <li>
               <a
-                href="tel:+34900000000"
+                href="tel:+5343522612"
                 className="transition-colors hover:text-white"
               >
-                +34 900 000 000
+                +53 43 522 612
               </a>
             </li>
-            <li>Madrid, España</li>
+            <li>
+              <a
+                href="tel:+5343524669"
+                className="transition-colors hover:text-white"
+              >
+                +53 43 524 669
+              </a>
+            </li>
+            <li>Ave 52 No 2514 e/ 25 y 27, Cienfuegos. Cuba.</li>
           </ul>
         </div>
       </div>
 
       <div className="mx-auto mt-12 w-full max-w-6xl border-t border-zinc-800 px-6 pt-6 text-xs text-zinc-500">
-        © {new Date().getFullYear()} FirmaDigital. Todos los derechos
+        © {new Date().getFullYear()} Alabbi S.U.R.L. Todos los derechos
         reservados.
       </div>
     </footer>
